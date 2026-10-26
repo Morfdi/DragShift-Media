@@ -24,6 +24,7 @@ from .convert import open_image, open_preview
 from .glass import pil_from_qimage, qimage_from_pil
 from .util import file_size, human_size, sibling
 from .window import GlassWindow, ImageView
+from .util import UserError
 
 Notify = Callable[..., None]
 
@@ -1425,3 +1426,216 @@ class ProtectWindow(ToolWindow):
     def save(self):
         pw, path = self.pw.text(), self.path
         self.run(lambda: [imaging.protect_pdf(path, pw)], "Encrypting…")
+
+# ================================================================ MEDIA: compress
+class CompressMediaWindow(ToolWindow):
+    tool_name = "Compress"
+    SIDES = [("Original size", None), ("Max 1920 px", 1920), ("Max 1280 px", 1280),
+             ("Max 854 px", 854), ("Max 640 px", 640)]
+    TARGETS = [("500 MB", 500_000_000), ("100 MB", 100_000_000), ("50 MB", 50_000_000),
+               ("25 MB", 25_000_000), ("10 MB", 10_000_000), ("5 MB", 5_000_000)]
+
+    def __init__(self, paths, notify):
+        super().__init__("Compress", paths, notify, size=(560, 520))
+        from . import media
+        self.media = media
+        self.orig_total = sum(file_size(p) for p in self.paths)
+        self.info = media.probe(self.path)
+
+        row, self.mode = toggle_row(["Quality", "Target size"])
+        self.body.addLayout(row)
+
+        self.q_box = QWidget()
+        g = QGridLayout(self.q_box); g.setContentsMargins(0, 0, 0, 0)
+        self.q = slider(10, 95, 72)
+        slider_row(g, 0, "Quality", self.q, lambda v: f"{v}")
+        self.body.addWidget(self.q_box)
+
+        self.t_box = QWidget()
+        tl = QHBoxLayout(self.t_box); tl.setContentsMargins(0, 0, 0, 0)
+        tl.addWidget(QLabel("Make under"))
+        self.tgrp = QButtonGroup(self)
+        for i, (lbl, _) in enumerate(self.TARGETS):
+            b = QPushButton(lbl); b.setCheckable(True); b.setChecked(i == 2)
+            self.tgrp.addButton(b, i); tl.addWidget(b)
+        tl.addStretch(1)
+        self.t_box.setVisible(False)
+        self.body.addWidget(self.t_box)
+
+        g2 = QGridLayout()
+        g2.addWidget(QLabel("Size"), 0, 0)
+        self.side = QComboBox()
+        for name, _ in self.SIDES:
+            self.side.addItem(name)
+        g2.addWidget(self.side, 0, 1)
+        self.body.addLayout(g2)
+
+        bits = []
+        if self.info.has_video: bits.append("video")
+        if self.info.has_audio: bits.append("audio")
+        bits.append(media.duration_str(self.info.duration))
+        if self.info.size:
+            bits.append(f"{self.info.size[0]}×{self.info.size[1]}")
+        self.summary = QLabel(" · ".join(bits)); self.summary.setObjectName("dim")
+        self.body.addWidget(self.summary)
+
+        self.est = QLabel(); self.est.setObjectName("big")
+        self.body.addWidget(self.est)
+        self.body.addStretch(1)
+        label = "Compress" if len(self.paths) == 1 else f"Compress {len(self.paths)} files"
+        self.body.addLayout(self.footer(label, self.save))
+
+        self.mode.idClicked.connect(self._mode)
+        self.q.valueChanged.connect(lambda _: self._update_est())
+        self.side.currentIndexChanged.connect(lambda _: self._update_est())
+        self.tgrp.idClicked.connect(lambda _: self._update_est())
+        self._update_est()
+
+    def _mode(self, i):
+        self.q_box.setVisible(i == 0)
+        self.t_box.setVisible(i == 1)
+        self._update_est()
+
+    def _update_est(self):
+        if self.mode.checkedId() == 1:
+            limit = self.TARGETS[self.tgrp.checkedId()][1]
+            self.est.setText(f"{human_size(self.orig_total)}  →  ≤ {human_size(limit)}")
+        else:
+            self.est.setText(f"{human_size(self.orig_total)}  →  quality {self.q.value()}")
+
+    def save(self):
+        media = self.media
+        paths = list(self.paths)
+        q = self.q.value()
+        side = self.SIDES[self.side.currentIndex()][1]
+        if self.mode.checkedId() == 1:
+            limit = self.TARGETS[self.tgrp.checkedId()][1]
+            self.run(lambda: [media.compress_media(p, q, side, max_bytes=limit) for p in paths],
+                     "Compressing…", f"target {human_size(limit)}")
+        else:
+            self.run(lambda: [media.compress_media(p, q, side) for p in paths],
+                     "Compressing…", f"quality {q}")
+
+
+# ================================================================ MEDIA: trim
+class TrimWindow(ToolWindow):
+    tool_name = "Trim"
+
+    def __init__(self, path, notify):
+        super().__init__("Trim", path, notify, size=(760, 500))
+        from . import media
+        self.media = media
+        self.info = media.probe(path)
+        self.dur = self.info.duration
+        if self.dur <= 0:
+            raise UserError("Can't read this file's duration.")
+
+        self.strip = QLabel(); self.strip.setAlignment(Qt.AlignCenter)
+        self.strip.setMinimumHeight(90)
+        self.body.addWidget(self.strip)
+        raw = media.filmstrip(path, count=12, width=120)
+        if raw:
+            qi = QImage(); qi.loadFromData(raw)
+            self.strip.setPixmap(QPixmap.fromImage(qi).scaledToHeight(84, Qt.SmoothTransformation))
+        else:
+            self.strip.setText(media.duration_str(self.dur))
+
+        from PySide6.QtWidgets import QDoubleSpinBox
+        g = QGridLayout()
+        self.start = QDoubleSpinBox(); self.end = QDoubleSpinBox()
+        for s, v in ((self.start, 0.0), (self.end, self.dur)):
+            s.setRange(0, self.dur); s.setDecimals(2); s.setValue(v); s.setSuffix(" s")
+        g.addWidget(QLabel("Start"), 0, 0); g.addWidget(self.start, 0, 1)
+        g.addWidget(QLabel("End"), 1, 0); g.addWidget(self.end, 1, 1)
+        self.body.addLayout(g)
+
+        self.length = QLabel(); self.length.setObjectName("big")
+        self.body.addWidget(self.length)
+
+        fr = QHBoxLayout(); fr.addWidget(QLabel("Output"))
+        self.fmt = QComboBox()
+        self.fmt.addItems(["MP4", "MKV", "WEBM"] if self.info.has_video
+                          else ["M4A", "MP3", "FLAC", "WAV", "OGG", "OPUS"])
+        fr.addWidget(self.fmt); fr.addStretch(1)
+        self.body.addLayout(fr)
+
+        self.copy = QCheckBox("Copy without re-encoding (instant, cut at nearest keyframe)")
+        self.body.addWidget(self.copy)
+        self.body.addStretch(1)
+        self.body.addLayout(self.footer("Trim", self.save))
+
+        self.start.valueChanged.connect(self._check)
+        self.end.valueChanged.connect(self._check)
+        self._check()
+
+    def _check(self):
+        s, e = self.start.value(), self.end.value()
+        if e <= s:
+            self.length.setText("End must be after start")
+            self.primary_btn.setEnabled(False)
+        else:
+            self.length.setText(f"Length: {self.media.duration_str(e - s)}")
+            self.primary_btn.setEnabled(True)
+
+    def save(self):
+        media = self.media
+        s, e = self.start.value(), self.end.value()
+        target = self.fmt.currentText() if self.fmt else None
+        copy = self.copy.isChecked()
+        path = self.path
+        self.run(lambda: [media.trim_media(path, s, e, target=target, copy=copy)],
+                 "Trimming…", f"{media.duration_str(s)}–{media.duration_str(e)}")
+
+
+# ================================================================ MEDIA: metadata
+class MediaMetadataWindow(ToolWindow):
+    tool_name = "Metadata"
+
+    def __init__(self, path, notify):
+        super().__init__("Metadata", path, notify, size=(560, 480))
+        from . import media
+        self.info = media.probe(path)
+        self.all_tags = media.all_tags(path)
+
+        card = QFrame(); card.setObjectName("card")
+        cl = QGridLayout(card); cl.setContentsMargins(14, 12, 14, 12); cl.setHorizontalSpacing(16)
+        rows: list[tuple[str, str]] = []
+        if self.info.has_video: rows.append(("Video", self.info.vcodec or "?"))
+        if self.info.has_audio: rows.append(("Audio", self.info.acodec or "?"))
+        if self.info.size:      rows.append(("Dimensions", f"{self.info.size[0]} × {self.info.size[1]}"))
+        if self.info.fps:       rows.append(("FPS", f"{self.info.fps:.2f}"))
+        if self.info.duration:  rows.append(("Duration", media.duration_str(self.info.duration)))
+        if self.info.bitrate:   rows.append(("Bitrate", f"{self.info.bitrate // 1000} kbps"))
+        for i, (k, v) in enumerate(rows):
+            kl = QLabel(k); kl.setObjectName("dim"); cl.addWidget(kl, i, 0)
+            vl = QLabel(str(v)); vl.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            cl.addWidget(vl, i, 1)
+        self.body.addWidget(card)
+
+        self.toggle = QPushButton(f"Show {len(self.all_tags)} tag{'s' if len(self.all_tags) != 1 else ''}")
+        self.toggle.setCheckable(True); self.toggle.setEnabled(bool(self.all_tags))
+        self.body.addWidget(self.toggle, 0, Qt.AlignLeft)
+
+        t = QTableWidget(len(self.all_tags), 2)
+        t.setHorizontalHeaderLabels(["Field", "Value"])
+        t.verticalHeader().setVisible(False)
+        t.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        t.horizontalHeader().setStretchLastSection(True)
+        t.setEditTriggers(QTableWidget.NoEditTriggers)
+        for r, (k, v) in enumerate(self.all_tags.items()):
+            t.setItem(r, 0, QTableWidgetItem(k)); t.setItem(r, 1, QTableWidgetItem(v))
+        t.setVisible(False)
+
+        def show_all(on):
+            t.setVisible(on)
+            self.resize(self.width(), 700 if on else 480)
+        self.toggle.toggled.connect(show_all)
+        self.body.addWidget(t, 1)
+        self.body.addStretch(0)
+        self.body.addLayout(self.footer("Remove all metadata", self.strip))
+
+    def strip(self):
+        from . import media
+        n = len(self.all_tags); path = self.path
+        self.run(lambda: [media.strip_media_metadata(path)],
+                 "Removing metadata…", f"removed {n} tag{'s' if n != 1 else ''}")

@@ -31,19 +31,22 @@ IPC_NAME = ipc_name()
 
 GLYPHS = {"Compress": "⇲", "Metadata": "ⓘ", "Redact": "▮", "Crop": "⌗", "Edit": "☼",
           "Annotate": "✎", "Add BG": "▣", "Resize": "⤢", "Split": "✂", "Rotate": "⟳",
-          "Merge": "⧉", "Protect": "⚿", "Extract": "⧈"}
+          "Merge": "⧉", "Protect": "⚿", "Extract": "⧈", "Trim": "✂", "Frames": "▦"}
 
 HINTS = {
     "Compress": "Shrink file size", "Metadata": "View · remove GPS", "Redact": "Hide private info",
     "Crop": "Trim to a ratio", "Edit": "Light · colour · rotate", "Annotate": "Arrows · text · steps",
     "Add BG": "Gradient backdrop", "Resize": "Change dimensions", "Split": "One PDF per page",
     "Rotate": "Turn pages 90°", "Merge": "Join into one PDF", "Protect": "Add a password",
-    "Extract": "Save embedded images",
+    "Extract": "Save embedded images", "Trim": "Cut start and end", "Frames": "Save still frames"
 }
 FORMAT_HINTS = {"JPG": "Small, universal", "PNG": "Lossless · transparency", "WEBP": "Smallest for web",
                 "HEIC": "iPhone format", "TIFF": "Print · archival", "AVIF": "Next-gen, tiny",
                 "BMP": "Uncompressed", "PDF": "Document", "ICO": "Windows icon", "GIF": "Legacy web",
-                "DOCX": "Editable Word", "TXT": "Plain text"}
+                "DOCX": "Editable Word", "TXT": "Plain text", "MP4": "Universal video", "WEBM": "Open web video",
+                "MOV": "Apple video", "MKV": "Flexible container",
+                "MP3": "Universal audio", "M4A": "AAC audio", "FLAC": "Lossless audio",
+                "OGG": "Vorbis audio", "OPUS": "Tiny modern audio", "WAV": "Uncompressed audio"}
 
 IMAGE_TOOLS = ["Compress", "Resize", "Crop", "Edit", "Annotate", "Redact", "Add BG", "Metadata"]
 PDF_TOOLS = ["Compress", "Split", "Rotate", "Protect", "Extract", "Metadata"]
@@ -231,6 +234,14 @@ class DragShiftApp(QObject):
     def describe(self, paths: list[str]) -> str:
         if len(paths) > 1:
             return f"{len(paths)} files"
+        cat = category(paths[0])
+        if cat in ("video", "audio"):
+            try:
+                from . import media
+                info = media.probe(paths[0])
+                return f"{media.duration_str(info.duration)} · {human_size(file_size(paths[0]))}"
+            except Exception:
+                pass
         return human_size(file_size(paths[0]))
 
     def build_rings(self, paths: list[str]) -> dict[str, list[Item]]:
@@ -251,6 +262,15 @@ class DragShiftApp(QObject):
         elif cat == "pdf":
             names = PDF_TOOLS[:3] + (["Merge"] if len(same) > 1 else []) + PDF_TOOLS[3:]
             rings["Tools"] = [Item(n, GLYPHS[n], key=f"tool:{n}", hint=HINTS[n]) for n in names]
+        elif cat == "video":
+            rings["Tools"] = [Item("Compress", GLYPHS["Compress"], key="tool:Compress", hint=HINTS["Compress"]),
+            Item("Trim", GLYPHS["Trim"], key="tool:Trim", hint=HINTS["Trim"]),
+            Item("Frames", GLYPHS["Frames"], key="tool:Frames", hint=HINTS["Frames"]),
+            Item("Metadata", GLYPHS["Metadata"], key="tool:Metadata", hint=HINTS["Metadata"])]
+        elif cat == "audio":
+            rings["Tools"] = [Item("Compress", GLYPHS["Compress"], key="tool:Compress", hint=HINTS["Compress"]),
+                          Item("Trim", GLYPHS["Trim"], key="tool:Trim", hint=HINTS["Trim"]),
+                          Item("Metadata", GLYPHS["Metadata"], key="tool:Metadata", hint=HINTS["Metadata"])]
         return rings
 
     # ------------------------------------------------------------ actions
@@ -259,6 +279,17 @@ class DragShiftApp(QObject):
         paths = [p for p in paths if category(p) == cat]
         kind, name = item.key.split(":", 1)
         if kind == "convert":
+            if cat in ("video", "audio"):
+                if name == "Compress":
+                    self.open_window(tools.CompressMediaWindow(paths, self.notify))
+                elif name == "Trim":
+                    self.open_window(tools.TrimWindow(paths[0], self.notify))
+                elif name == "Metadata":
+                    self.open_window(tools.MediaMetadataWindow(paths[0], self.notify))
+                elif name == "Frames":
+                    from . import media
+                    self.submit
+
             if cat == "image" and name == "PDF" and len(paths) > 1:
                 self.submit(f"convert:{name}", paths, lambda: convert.images_to_single_pdf(paths),
                             f"Combining {len(paths)} images…")
@@ -473,6 +504,10 @@ def main(argv: list[str] | None = None) -> int:
     elif "--quiet" not in argv:
         QTimer.singleShot(400, lambda: app.toasts.info(
             "DragShift is running", f"Drag any file, then press {app.trigger_label()}."))
+    if getattr(sys, "frozen", False):
+        from . import media
+        if media._bundled("ffmpeg") is None or media._bundled("ffprobe") is None:
+            raise RuntimeError("ffmpeg/ffprobe are not bundled into the app")
     return qapp.exec()
 
 

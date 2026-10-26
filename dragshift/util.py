@@ -10,6 +10,11 @@ PDF_EXTS = {".pdf"}
 DOCX_EXTS = {".docx"}
 TEXT_EXTS = {".txt", ".md", ".csv", ".log", ".json", ".xml", ".html", ".htm"}
 
+VIDEO_EXTS = {".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v", ".wmv", ".flv",
+              ".mpg", ".mpeg", ".3gp", ".ts", ".mts", ".m2ts"}
+AUDIO_EXTS = {".mp3", ".m4a", ".wav", ".flac", ".ogg", ".opus", ".aac", ".wma",
+              ".aiff", ".aif", ".alac", ".oga"}
+
 
 def category(path: str | Path) -> str | None:
     ext = Path(path).suffix.lower()
@@ -21,6 +26,10 @@ def category(path: str | Path) -> str | None:
         return "docx"
     if ext in TEXT_EXTS:
         return "text"
+    if ext in VIDEO_EXTS:
+        return "video"
+    if ext in AUDIO_EXTS:
+        return "audio"
     return None
 
 

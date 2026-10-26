@@ -1,3 +1,7 @@
+dragshift/assets/ffmpeg/
+
+dist/
+build/
 __pycache__/
 *.pyc
 build/
@@ -6,3 +10,5 @@ dist/
 .pytest_cache/
 .venv/
 e2e_*_out/
+
+

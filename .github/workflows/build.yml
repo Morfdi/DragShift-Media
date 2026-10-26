@@ -28,6 +28,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller pytest
 
+      - name: Install ffmpeg
+        run: choco install ffmpeg -y --no-progress
+
+      - name: Bundle ffmpeg into the app
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dragshift\assets\ffmpeg | Out-Null
+          Copy-Item (Get-Command ffmpeg).Source  dragshift\assets\ffmpeg\ffmpeg.exe
+          Copy-Item (Get-Command ffprobe).Source dragshift\assets\ffmpeg\ffprobe.exe
+
       - name: Run tests
         run: python -m pytest -q
         env:
@@ -143,6 +153,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller pytest
+
+      - name: Install ffmpeg
+        run: brew install ffmpeg
+
+      - name: Bundle ffmpeg into the app
+        run: |
+          mkdir -p dragshift/assets/ffmpeg
+          cp "$(which ffmpeg)"  dragshift/assets/ffmpeg/ffmpeg
+          cp "$(which ffprobe)" dragshift/assets/ffmpeg/ffprobe
+          chmod +x dragshift/assets/ffmpeg/*
 
       - name: Run tests
         run: python -m pytest -q

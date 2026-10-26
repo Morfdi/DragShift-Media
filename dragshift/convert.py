@@ -11,6 +11,8 @@ from PIL import Image, ImageOps
 
 from .util import UserError, sibling
 
+from . import media
+
 try:  # HEIC / HEIF support
     import pillow_heif
     pillow_heif.register_heif_opener()
@@ -362,6 +364,10 @@ def targets_for(cat: str, src_ext: str) -> list[str]:
         if not HEIF_OK:
             t = [x for x in t if x != "HEIC"]
         return t
+    if cat == "video":
+        return [t for t in media.VIDEO_TARGETS if t != cur]
+    if cat == "audio":
+        return [t for t in media.AUDIO_TARGETS if t != cur]
     return {"pdf": PDF_TARGETS, "docx": DOCX_TARGETS, "text": TEXT_TARGETS}.get(cat, [])
 
 
@@ -380,4 +386,7 @@ def convert(src: str | Path, cat: str, target: str) -> list[Path]:
         return docx_to_pdf(src) if target == "PDF" else docx_to_txt(src)
     if cat == "text":
         return text_to_pdf(src) if target == "PDF" else text_to_docx(src)
+    if cat in ("video", "audio"):
+        return [media.convert_media(src, target)]
     raise ValueError(f"Can't convert {cat} to {target}")
+
