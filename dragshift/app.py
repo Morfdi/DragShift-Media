@@ -278,18 +278,8 @@ class DragShiftApp(QObject):
         cat = category(paths[0])
         paths = [p for p in paths if category(p) == cat]
         kind, name = item.key.split(":", 1)
+        
         if kind == "convert":
-            if cat in ("video", "audio"):
-                if name == "Compress":
-                    self.open_window(tools.CompressMediaWindow(paths, self.notify))
-                elif name == "Trim":
-                    self.open_window(tools.TrimWindow(paths[0], self.notify))
-                elif name == "Metadata":
-                    self.open_window(tools.MediaMetadataWindow(paths[0], self.notify))
-                elif name == "Frames":
-                    from . import media
-                    self.submit
-
             if cat == "image" and name == "PDF" and len(paths) > 1:
                 self.submit(f"convert:{name}", paths, lambda: convert.images_to_single_pdf(paths),
                             f"Combining {len(paths)} images…")
@@ -298,6 +288,22 @@ class DragShiftApp(QObject):
                 self.submit(f"convert:{name}", paths,
                             lambda: [o for p in paths for o in convert.convert(p, cat, name)], verb)
             return
+
+        # --- НОВЫЙ БЛОК ДЛЯ АУДИО И ВИДЕО ---
+        if cat in ("video", "audio"):
+            if name == "Compress":
+                self.open_window(tools.CompressMediaWindow(paths, self.notify))
+            elif name == "Trim":
+                self.open_window(tools.TrimWindow(paths[0], self.notify))
+            elif name == "Metadata":
+                self.open_window(tools.MediaMetadataWindow(paths[0], self.notify))
+            elif name == "Frames":
+                from . import media
+                self.submit("tool:Frames", paths,
+                            lambda: [o for p in paths for o in media.extract_frames(p)],
+                            "Extracting frames…")
+            return
+
         if cat == "pdf":
             if name == "Merge":
                 self.submit("tool:Merge", paths, lambda: [imaging.merge_pdfs(paths)], "Merging…")
@@ -313,6 +319,8 @@ class DragShiftApp(QObject):
                             {"Compress": "Compressing…", "Split": "Splitting…", "Rotate": "Rotating…",
                              "Extract": "Extracting images…"}[name])
             return
+
+        # Инструменты для изображений
         windows = {"Crop": tools.CropWindow, "Add BG": tools.AddBgWindow, "Annotate": tools.AnnotateWindow,
                    "Redact": tools.RedactWindow, "Edit": tools.EditWindow, "Metadata": tools.MetadataWindow}
         try:
@@ -508,6 +516,10 @@ def main(argv: list[str] | None = None) -> int:
         from . import media
         if media._bundled("ffmpeg") is None or media._bundled("ffprobe") is None:
             raise RuntimeError("ffmpeg/ffprobe are not bundled into the app")
+    if getattr(sys, "frozen", False):
+        from . import media
+        if not media.available():  # media.available() проверяет и внутри папки, и в системе
+            raise RuntimeError("ffmpeg/ffprobe are missing. Please install ffmpeg or bundle it.")
     return qapp.exec()
 
 
