@@ -1,10 +1,12 @@
-# DragShift
+# DragShift Media
 
-Convert and edit files on **Windows, Mac and Linux** with a liquid-glass radial menu. Start dragging any file, press **Shift**, and drop it on a slice.
+Convert and edit image, PDF, text, video, and audio files on **Windows, Mac and Linux** with a liquid-glass radial menu. Start dragging any file, press **Shift**, and drop it on a slice.
 
 ![DragShift radial menu and Add BG editor](docs/preview.png)
 
 ## Download
+
+> **Note:** **FFmpeg** comes bundled inside all pre-built releases for Windows, Mac, and Linux. No extra installation is required!
 
 From the [latest release](../../releases/latest):
 
@@ -14,7 +16,7 @@ From the [latest release](../../releases/latest):
 **Mac (easiest, no security warning):** paste this into Terminal:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/llamaboi55/DragShift/main/install-mac.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Morfdi/DragShift-Media/main/install-mac.sh | bash
 ```
 
 It picks the right build for your Mac, installs it to Applications and opens it ([see what it does](install-mac.sh)). Run the same line again to update.
@@ -49,7 +51,7 @@ Open **DragShift** from the app menu. It sits in the panel's notification area, 
 
 ## How to use
 
-1. Start dragging a file (an image, PDF, Word or text file; desktop shortcuts to one work too) in File Explorer, Finder, your Linux file manager or on the desktop.
+1. Start dragging a file (an image, PDF, Word, text, video, or audio file; desktop shortcuts to one work too) in File Explorer, Finder, your Linux file manager or on the desktop.
 2. Press **Shift**. The menu opens under your cursor.
 3. Drop the file on a slice. The result is saved **next to the original**, and the original is never changed.
 4. To switch between **Convert** and **Tools**, tap **Shift** again.
@@ -66,6 +68,8 @@ You can also right-click a file → **DragShift…**, use **Send to → DragShif
 | PDF | JPG or PNG (one per page), DOCX, TXT | Compress · Split · Rotate · Merge (drop several) · **Protect** (AES-256 password) · **Extract images** · Metadata |
 | Word (.docx) | PDF (uses Microsoft Word if it's installed, otherwise a built-in renderer), TXT | — |
 | Text (.txt, .md, .csv…) | PDF, DOCX | — |
+| Video (MP4, MOV, MKV, AVI, WEBM, M4V, WMV, FLV, MPG, MPEG, 3GP, TS, MTS, M2TS) | MP4, WEBM, MOV, MKV, GIF, MP3 | Compress · Trim · Frames · Metadata |
+| Audio (MP3, M4A, WAV, FLAC, OGG, OPUS, AAC, WMA, AIFF, ALAC) | MP3, M4A, WAV, FLAC, OGG, OPUS | Compress · Trim · Metadata |
 
 **Settings** (tray menu): trigger key (Shift, Ctrl or Alt), where results go (next to the original or a `DragShift` subfolder), JPG/WebP quality, PDF → image resolution, and start at login.
 
@@ -96,6 +100,8 @@ DragShift is free. If it saves you time, you can leave a tip on Cash App: [**$At
 
 ## Run from source
 
+To run from source, make sure you have **FFmpeg** installed on your system and available in your system's PATH.
+
 ```bash
 pip install -r requirements.txt
 python -m dragshift
@@ -106,3 +112,12 @@ On Linux, PySide6 also needs the Qt XCB libraries: `sudo apt install libxcb-curs
 Tests: `python -m pytest -q`. Logs are written to `%LOCALAPPDATA%\DragShift\log.txt` on Windows, `~/Library/Logs/DragShift/log.txt` on Mac and `~/.local/share/DragShift/log.txt` on Linux.
 
 Windows builds will be code-signed by the SignPath Foundation, which provides free code signing for open-source projects.
+
+## Authors & Credits
+
+- **Original project & design:** llamaboi55 (creator of DragShift).
+- **Media extension (this fork):** Morfdi (added video/audio support, ffmpeg integration, expanded UI).
+- **Interface:** PySide6 / Qt.
+- **Images & PDFs:** Pillow, PyMuPDF.
+- **Documents:** python-docx.
+- **Audio & video:** ffmpeg (bundled).
