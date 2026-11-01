@@ -289,7 +289,7 @@ class DragShiftApp(QObject):
                             lambda: [o for p in paths for o in convert.convert(p, cat, name)], verb)
             return
 
-        # --- НОВЫЙ БЛОК ДЛЯ АУДИО И ВИДЕО ---
+        # --- БЛОК ДЛЯ АУДИО И ВИДЕО ---
         if cat in ("video", "audio"):
             if name == "Compress":
                 self.open_window(tools.CompressMediaWindow(paths, self.notify))
@@ -514,11 +514,7 @@ def main(argv: list[str] | None = None) -> int:
             "DragShift is running", f"Drag any file, then press {app.trigger_label()}."))
     if getattr(sys, "frozen", False):
         from . import media
-        if media._bundled("ffmpeg") is None or media._bundled("ffprobe") is None:
-            raise RuntimeError("ffmpeg/ffprobe are not bundled into the app")
-    if getattr(sys, "frozen", False):
-        from . import media
-        if not media.available():  # media.available() проверяет и внутри папки, и в системе
+        if not media.available():  # проверяет и в папке, и в системе
             raise RuntimeError("ffmpeg/ffprobe are missing. Please install ffmpeg or bundle it.")
     return qapp.exec()
 
